@@ -1,0 +1,10 @@
+/target
+/.git
+/.codegraph
+/.playwright-mcp
+/.omo
+/dev
+/*.png
+.env
+README.md
+docker-compose.yml
