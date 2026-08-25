@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Ccircle cx='30' cy='30' r='26' fill='none' stroke='rgba(148,163,184,.35)' stroke-width='6'/%3E%3Ccircle cx='30' cy='30' r='26' fill='none' stroke='%235eead4' stroke-width='6' stroke-linecap='round' stroke-dasharray='163.36' stroke-dashoffset='66' transform='rotate(-90 30 30)'/%3E%3C/svg%3E">
+<title>Quota Dashboard · CLIProxyAPI 配额面板</title>
+<style>
+  :root{
+    --bg:#0a0d13;
+    --surface:#12161f;
+    --surface-2:#171c27;
+    --line:rgba(148,163,184,.14);
+    --line-strong:rgba(148,163,184,.26);
+    --text:#e7ecf3;
+    --muted:#93a0b4;
+    --faint:#5b6676;
+    --accent:#5eead4;
+    --accent-ink:#062b25;
+    --accent-dim:rgba(94,234,212,.13);
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --danger:#f87171;
+    --radius:16px;
+    --shadow:0 18px 40px -22px rgba(0,0,0,.65);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--text);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(52rem 30rem at 12% -8%, rgba(94,234,212,.07), transparent 60%),
+      radial-gradient(46rem 28rem at 96% 108%, rgba(99,102,241,.07), transparent 62%);
+  }
+  ::selection{background:var(--accent-dim)}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  input{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+  /* ---------- views ---------- */
+  .view{display:none;position:relative;z-index:1}
+  .view.active{display:block}
+
+  /* ---------- login ---------- */
+  #view-login.active{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+  .login-wrap{width:min(392px,100%)}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:26px;text-align:center}
+  .brand-mark{filter:drop-shadow(0 6px 18px rgba(94,234,212,.35))}
+  .brand h1{margin:0;font-size:21px;font-weight:650;letter-spacing:.02em}
+  .brand p{margin:0;font-size:13px;color:var(--muted)}
+  .card{
+    background:linear-gradient(180deg,var(--surface-2),var(--surface));
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px;box-shadow:var(--shadow);
+  }
+  .field-label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 7px 2px;letter-spacing:.04em}
+  .input-row{position:relative;display:flex}
+  input[type=password],input[type=text]{
+    width:100%;padding:11px 42px 11px 13px;border-radius:11px;
+    border:1px solid var(--line-strong);background:rgba(10,13,19,.6);
+    transition:border-color .18s ease, box-shadow .18s ease;
+  }
+  input::placeholder{color:var(--faint)}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:7px;color:var(--muted);border-radius:8px;display:flex}
+  .eye:hover{color:var(--text)}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border-radius:11px;padding:10px 16px;font-weight:600;font-size:14px;
+    transition:transform .12s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+    user-select:none;white-space:nowrap;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);width:100%;margin-top:16px;padding:11.5px 16px}
+  .btn-primary:hover{background:#79f0dd}
+  .btn-primary[disabled]{opacity:.55;cursor:default}
+  .btn-ghost{border:1px solid var(--line-strong);color:var(--muted);padding:7.5px 13px;font-size:13px}
+  .btn-ghost:hover{border-color:var(--line-strong);color:var(--text);background:rgba(255,255,255,.03)}
+  .banner{
+    display:none;margin-top:14px;padding:9.5px 12px;border-radius:10px;font-size:13px;line-height:1.45;
+    border:1px solid rgba(248,113,113,.32);background:rgba(248,113,113,.09);color:#fecaca;
+  }
+  .banner.show{display:block}
+  .banner.info{border-color:rgba(94,234,212,.3);background:var(--accent-dim);color:#b9f5ea}
+  .login-foot{margin-top:15px;text-align:center;font-size:12px;color:var(--faint)}
+
+  /* ---------- dashboard ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:20;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    background:rgba(10,13,19,.78);border-bottom:1px solid var(--line);
+  }
+  .topbar-in{max-width:1180px;margin:0 auto;padding:13px 22px;display:flex;align-items:center;gap:14px}
+  .top-brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:15.5px;letter-spacing:.01em}
+  .top-brand svg{display:block}
+  .top-sub{font-size:12px;color:var(--faint);font-weight:500;margin-top:1px}
+  .spacer{flex:1}
+  .updated{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  main.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 56px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .foot-note{margin-top:26px;text-align:center;font-size:12px;color:var(--faint)}
+
+  /* account card */
+  .acct{
+    background:linear-gradient(180deg,var(--surface-2),var(--surface));
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:17px 17px 15px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:12px;
+    transition:transform .18s ease,border-color .18s ease;
+  }
+  .acct:hover{transform:translateY(-2px);border-color:var(--line-strong)}
+  .acct.disabled{opacity:.52;filter:saturate(.4)}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .fade-up{animation:fadeUp .45s cubic-bezier(.2,.7,.3,1) both}
+  .card-top{display:flex;align-items:center;gap:8px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 7px;border-radius:999px;
+    font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--pc,#aab6c8);
+    background:color-mix(in srgb,var(--pc) 11%,transparent);
+    border:1px solid color-mix(in srgb,var(--pc) 30%,transparent);
+  }
+  .chip svg{display:block}
+  .pv-claude{--pc:#e8865a}.pv-codex{--pc:#2fbf9a}.pv-gemini{--pc:#5f95f6}.pv-kimi{--pc:#a78bff}.pv-other{--pc:#8b97a9}
+  .badge-plan{
+    font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-dim);border:1px solid rgba(94,234,212,.28);
+    padding:2.5px 8px;border-radius:999px;
+  }
+  .tag-off{font-size:11.5px;color:var(--muted);border:1px dashed var(--line-strong);padding:2.5px 9px;border-radius:999px}
+  .acct h3{margin:0;font-size:15px;font-weight:600;word-break:break-all;line-height:1.4}
+  .windows{display:flex;flex-wrap:wrap;gap:12px 18px}
+  .win{display:flex;align-items:center;gap:10px;min-width:128px}
+  .gauge{position:relative;width:62px;height:62px;flex:none}
+  .gauge svg{display:block;width:100%;height:100%}
+  .gauge .track{fill:none;stroke:rgba(148,163,184,.13);stroke-width:5}
+  .gauge .arc{
+    fill:none;stroke-width:5;stroke-linecap:round;
+    stroke:var(--faint);
+    transition:stroke-dashoffset .8s cubic-bezier(.3,.7,.3,1), stroke .4s ease;
+  }
+  .gauge[data-sev="ok"] .arc{stroke:var(--ok)}
+  .gauge[data-sev="warn"] .arc{stroke:var(--warn)}
+  .gauge[data-sev="danger"] .arc{stroke:var(--danger)}
+  .gauge .pct{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  }
+  .gauge[data-sev="warn"] .pct{color:var(--warn)}
+  .gauge[data-sev="danger"] .pct{color:var(--danger)}
+  .gauge .pct small{font-size:9.5px;font-weight:600;color:var(--muted);margin-left:1px}
+  .win-meta{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .wname{font-size:12.5px;font-weight:650;color:var(--muted);letter-spacing:.02em}
+  .wdesc{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .wcap{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .over-tag{
+    align-self:flex-start;font-size:10.5px;font-weight:700;color:var(--danger);
+    border:1px solid rgba(248,113,113,.4);border-radius:5px;padding:0 5px;margin-top:3px;width:max-content;
+  }
+  .extras{display:flex;flex-direction:column;gap:5px;border-top:1px solid var(--line);padding-top:10px}
+  .extra-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .extra-row i{width:5px;height:5px;border-radius:50%;background:var(--accent);opacity:.75;flex:none}
+  .err-row{
+    display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:#f3d9ac;
+    background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.18);
+    border-radius:10px;padding:9px 11px;
+  }
+  .err-row svg{flex:none;margin-top:1.5px;color:var(--warn)}
+
+  /* skeleton */
+  @keyframes shimmer{to{background-position:-200% 0}}
+  .skel-card{border:1px solid var(--line);border-radius:var(--radius);padding:17px;height:172px}
+  .skel{border-radius:8px;background:linear-gradient(90deg,rgba(148,163,184,.08) 25%,rgba(148,163,184,.16) 37%,rgba(148,163,184,.08) 63%);background-size:200% 100%;animation:shimmer 1.4s infinite linear}
+  .empty{
+    grid-column:1/-1;text-align:center;color:var(--muted);padding:70px 20px;
+    border:1px dashed var(--line-strong);border-radius:var(--radius);font-size:14px;
+  }
+
+  /* toast */
+  #toasts{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:9px;max-width:min(360px,calc(100vw - 36px))}
+  .toast{
+    display:flex;gap:8px;align-items:flex-start;
+    background:#1a2030;border:1px solid var(--line-strong);border-left:3px solid var(--danger);
+    color:var(--text);font-size:13px;line-height:1.5;padding:11px 13px;border-radius:11px;
+    box-shadow:0 14px 34px -14px rgba(0,0,0,.7);
+    animation:toastIn .3s cubic-bezier(.2,.7,.3,1) both;
+  }
+  .toast.info{border-left-color:var(--accent)}
+  .toast.leaving{opacity:0;transform:translateY(6px);transition:all .3s ease}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinning svg.ic{animation:spin .85s linear infinite}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media (max-width:640px){
+    .topbar-in{padding:11px 14px;flex-wrap:wrap;row-gap:8px}
+    main.wrap{padding:18px 14px 44px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="view-login" class="view active" aria-labelledby="login-title">
+  <div class="login-wrap">
+    <div class="brand">
+      <svg class="brand-mark" width="54" height="54" viewBox="0 0 60 60" aria-hidden="true">
+        <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(148,163,184,.18)" stroke-width="4.5"/>
+        <circle cx="30" cy="30" r="26" fill="none" stroke="#5eead4" stroke-width="4.5" stroke-linecap="round"
+                stroke-dasharray="163.36" stroke-dashoffset="57" transform="rotate(-90 30 30)"/>
+        <path d="M23 31.5l5 5 10-12" fill="none" stroke="#5eead4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1 id="login-title">CLIProxyAPI 配额面板</h1>
+      <p>使用 API Key 登录，查看全部 OAuth 账号用量</p>
+    </div>
+    <form class="card" id="login-form" novalidate>
+      <label class="field-label" for="api-key">API Key</label>
+      <div class="input-row">
+        <input id="api-key" name="api_key" type="password" placeholder="粘贴 CLIProxyAPI 的 API Key…"
+               autocomplete="current-password" spellcheck="false" required>
+        <button type="button" class="eye" id="eye-toggle" aria-label="显示或隐藏 API Key">
+          <svg id="eye-open" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eye-closed" style="display:none" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+        </button>
+      </div>
+      <button class="btn btn-primary" type="submit" id="login-btn">登 录</button>
+      <div class="banner" id="login-banner" role="alert"></div>
+    </form>
+    <p class="login-foot">凭证仅用于向 CLIProxyAPI 校验身份，不会被存储</p>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="view-dashboard" class="view" aria-label="配额仪表盘">
+  <header class="topbar">
+    <div class="topbar-in">
+      <div class="top-brand">
+        <svg width="26" height="26" viewBox="0 0 60 60" aria-hidden="true">
+          <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(148,163,184,.2)" stroke-width="6"/>
+          <circle cx="30" cy="30" r="26" fill="none" stroke="#5eead4" stroke-width="6" stroke-linecap="round"
+                  stroke-dasharray="163.36" stroke-dashoffset="66" transform="rotate(-90 30 30)"/>
+        </svg>
+        <span>配额面板<span class="top-sub">　CLIProxyAPI</span></span>
+      </div>
+      <span class="spacer"></span>
+      <span class="updated" id="updated-at" aria-live="polite"></span>
+      <button class="btn btn-ghost" id="refresh-btn" title="立即刷新" aria-label="立即刷新">
+        <svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+        刷新
+      </button>
+      <button class="btn btn-ghost" id="logout-btn" title="退出登录" aria-label="退出登录">
+        <svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        退出
+      </button>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="grid" id="grid" aria-live="polite"></div>
+    <p class="foot-note">每 60 秒自动刷新 · 配额由服务端经管理接口聚合，密钥不出服务器</p>
+  </main>
+</section>
+
+<div id="toasts" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+(function(){
+  const $ = (sel) => document.querySelector(sel);
+
+  /* ---------------- state ---------------- */
+  let firstLoad = true;         // show skeletons until first successful render
+  let pollTimer = null;
+  let inflight = null;          // AbortController of current quota fetch
+  let refreshing = false;
+
+  const C = 163.363;            // gauge circumference (r=26)
+
+  const PROVIDERS = {
+    claude: { label:'Claude',      cls:'pv-claude', d:'M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9L4.9 19.1', filled:false },
+    codex:  { label:'Codex',       cls:'pv-codex',  d:'M12 2l8.66 5v10L12 22 3.34 17V7z M12 7.5l4.33 2.5v5L12 17.5 7.67 15v-5z', filled:false },
+    gemini: { label:'Gemini CLI',  cls:'pv-gemini', d:'M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z', filled:true },
+    kimi:   { label:'Kimi',        cls:'pv-kimi',   d:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z', filled:true },
+    other:  { label:'其他',        cls:'pv-other',  d:'M12 5.5v.01M12 12v.01M12 18.5v.01', filled:false },
+  };
+
+  /* ---------------- helpers ---------------- */
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+
+  async function api(path, opts){
+    try{
+      const res = await fetch(path, Object.assign({ headers:{ 'Accept':'application/json' } }, opts));
+      let data = null;
+      try { data = await res.json(); } catch(_) { /* non-json body */ }
+      return { status: res.status, data };
+    }catch(err){
+      return { status: 0, data: null };
+    }
+  }
+
+  function fmtReset(iso){
+    if(!iso) return '';
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return iso;
+    let s = Math.floor((t - Date.now()) / 1000);
+    if (s <= 0) return '已重置';
+    if (s < 60) return `${s} 秒后重置`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} 分钟后重置`;
+    const h = Math.floor(m / 60);
+    if (h < 48) return `${h} 小时 ${m % 60} 分后重置`;
+    return `${Math.floor(h / 24)} 天后重置`;
+  }
+
+  function fmtAgo(unix){
+    const s = Math.max(0, Math.floor(Date.now()/1000 - unix));
+    if (s < 10) return '刚刚更新';
+    if (s < 60) return `${s} 秒前更新`;
+    if (s < 3600) return `${Math.floor(s/60)} 分钟前更新`;
+    return `${Math.floor(s/3600)} 小时前更新`;
+  }
+
+  function severity(p){
+    if (p == null || !Number.isFinite(p)) return 'none';
+    if (p >= 90) return 'danger';
+    if (p >= 70) return 'warn';
+    return 'ok';
+  }
+
+  function showToast(msg, kind){
+    const el = document.createElement('div');
+    el.className = 'toast' + (kind === 'info' ? ' info' : '');
+    el.innerHTML =
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" style="flex:none;margin-top:2px;' + (kind === 'info' ? '' : 'color:var(--danger);') + '">' +
+      (kind === 'info'
+        ? '<circle cx="12" cy="12" r="9"/><path d="M12 8v.01M12 11v5"/>'
+        : '<path d="M12 3L2 20h20z"/><path d="M12 9.5V14M12 17v.01"/>') +
+      '</svg><span>' + esc(msg) + '</span>';
+    $('#toasts').appendChild(el);
+    setTimeout(() => {
+      el.classList.add('leaving');
+      setTimeout(() => el.remove(), 320);
+    }, 4200);
+  }
+
+  /* ---------------- view switching ---------------- */
+  function showLogin(notice){
+    stopPolling();
+    firstLoad = true;
+    $('#view-dashboard').classList.remove('active');
+    $('#view-login').classList.add('active');
+    const banner = $('#login-banner');
+    banner.className = 'banner show' + (notice ? ' info' : '');
+    banner.textContent = notice || '';
+    if (!notice) banner.classList.remove('show');
+    $('#api-key').value = '';
+    setTimeout(() => $('#api-key').focus(), 40);
+  }
+
+  function showDashboard(){
+    $('#view-login').classList.remove('active');
+    $('#view-dashboard').classList.add('active');
+  }
+
+  /* ---------------- rendering ---------------- */
+  function chipHTML(providerKey){
+    const p = PROVIDERS[providerKey] || PROVIDERS.other;
+    const glyph = p.filled
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + p.d + '"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + p.d + '"/></svg>';
+    return '<span class="chip ' + p.cls + '">' + glyph + esc(p.label) + '</span>';
+  }
+
+  function windowHTML(w){
+    const p = w.used_percent;
+    const sev = severity(p);
+    const shown = (p == null) ? null : Math.min(Math.max(p, 0), 100);
+    const offset = (shown == null) ? C : C * (1 - shown / 100);
+    const pctText = (p == null) ? '—' : String(Math.round(p * 10) / 10);
+    const overTag = (p != null && p > 100)
+      ? '<span class="over-tag">超限</span>'
+      : ((sev === 'danger' && shown != null && shown >= 99 && p <= 100) ? '<span class="over-tag" style="color:var(--warn);border-color:rgba(251,191,36,.4)">将耗尽</span>' : '');
+    return (
+      '<div class="win">' +
+        '<div class="gauge" data-sev="' + sev + '" role="img" aria-label="' + esc(w.name) + ' 已用 ' + esc(pctText) + '%">' +
+          '<svg viewBox="0 0 60 60">' +
+            '<circle class="track" cx="30" cy="30" r="26"/>' +
+            '<circle class="arc" cx="30" cy="30" r="26" transform="rotate(-90 30 30)" ' +
+              'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '"/>' +
+          '</svg>' +
+          '<b class="pct">' + esc(pctText) + '<small>%</small></b>' +
+        '</div>' +
+        '<div class="win-meta">' +
+          '<span class="wname">' + esc(w.name) + '</span>' +
+          (w.resets_at ? '<span class="wdesc" data-reset="' + esc(w.resets_at) + '">' + esc(fmtReset(w.resets_at)) + '</span>' : '') +
+          (w.caption ? '<span class="wcap">' + esc(w.caption) + '</span>' : '') +
+          overTag +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function cardHTML(a, i){
+    const extras = [];
+    if (a.extra){
+      if (a.extra.credit_summary) extras.push(a.extra.credit_summary);
+      if (a.extra.g1_credits) extras.push(a.extra.g1_credits);
+    }
+    const windows = (a.error == null && !a.disabled && Array.isArray(a.windows) && a.windows.length)
+      ? '<div class="windows">' + a.windows.map(windowHTML).join('') + '</div>'
+      : '';
+    const errRow = a.error
+      ? '<div class="err-row">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 9.5V14M12 17v.01"/></svg>' +
+        '<span>' + esc(a.error) + '</span></div>'
+      : '';
+    return (
+      '<article class="acct fade-up' + (a.disabled ? ' disabled' : '') + '" style="animation-delay:' + (i * 45) + 'ms">' +
+        '<div class="card-top">' +
+          chipHTML(a.provider) +
+          (a.plan ? '<span class="badge-plan">' + esc(a.plan) + '</span>' : '') +
+          '<span class="spacer"></span>' +
+          (a.disabled ? '<span class="tag-off">已禁用</span>' : '') +
+        '</div>' +
+        '<h3 title="' + esc(a.label) + '">' + esc(a.label) + '</h3>' +
+        windows + errRow +
+        (extras.length
+          ? '<div class="extras">' + extras.map((x) => '<div class="extra-row"><i></i>' + esc(x) + '</div>').join('') + '</div>'
+          : '') +
+      '</article>'
+    );
+  }
+
+  function renderAccounts(accounts){
+    const grid = $('#grid');
+    if (!Array.isArray(accounts) || accounts.length === 0){
+      grid.innerHTML = '<div class="empty fade-up">暂无可展示的 OAuth 账号</div>';
+      return;
+    }
+    grid.innerHTML = accounts.map(cardHTML).join('');
+  }
+
+  function renderSkeletons(){
+    $('#grid').innerHTML = '<div class="skel-card"><div class="skel" style="width:38%;height:22px"></div>' +
+      '<div class="skel" style="width:70%;height:16px;margin-top:14px"></div>' +
+      '<div style="display:flex;gap:18px;margin-top:22px"><div class="skel" style="width:62px;height:62px;border-radius:50%"></div>' +
+      '<div class="skel" style="width:62px;height:62px;border-radius:50%"></div></div></div>'.repeat(3);
+  }
+
+  /* ---------------- data ---------------- */
+  async function refresh(manual){
+    if (refreshing && !manual) return;
+    if (document.hidden && !manual) return;
+    if (inflight) inflight.abort();
+    inflight = new AbortController();
+    refreshing = true;
+    const btn = $('#refresh-btn');
+    btn.classList.add('spinning');
+
+    const res = await api('/api/quota', { signal: inflight.signal });
+    refreshing = false;
+    btn.classList.remove('spinning');
+    inflight = null;
+
+    if (res.status === 401){ handleExpired(); return; }
+    if (res.status !== 200 || !res.data){
+      showToast((res.data && res.data.error) || '获取配额失败，保留上次数据');
+      return;
+    }
+    if (firstLoad) firstLoad = false;
+    renderAccounts(res.data.accounts);
+    const up = $('#updated-at');
+    up.dataset.unix = res.data.fetched_at;
+    up.textContent = fmtAgo(res.data.fetched_at);
+  }
+
+  function startPolling(){
+    stopPolling();
+    pollTimer = setInterval(() => refresh(false), 60000);
+  }
+  function stopPolling(){
+    if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+    if (inflight){ inflight.abort(); inflight = null; }
+    refreshing = false;
+  }
+
+  function handleExpired(){
+    showLogin('会话已过期，请重新登录');
+  }
+
+  function enterDashboard(){
+    showDashboard();
+    if (firstLoad) renderSkeletons();
+    startPolling();
+    refresh(true);
+  }
+
+  /* ---------------- events ---------------- */
+  function bind(){
+    // eye toggle
+    $('#eye-toggle').addEventListener('click', () => {
+      const input = $('#api-key');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      $('#eye-open').style.display = show ? 'none' : '';
+      $('#eye-closed').style.display = show ? '' : 'none';
+    });
+
+    // login
+    $('#login-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const key = $('#api-key').value.trim();
+      const banner = $('#login-banner');
+      banner.className = 'banner';
+      banner.textContent = '';
+      if (!key){
+        banner.className = 'banner show';
+        banner.textContent = '请输入 API Key';
+        return;
+      }
+      const btn = $('#login-btn');
+      btn.disabled = true;
+      btn.textContent = '验证中…';
+      const res = await api('/api/login', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ api_key: key }),
+      });
+      btn.disabled = false;
+      btn.textContent = '登 录';
+      if (res.status === 200){
+        enterDashboard();
+      } else {
+        banner.className = 'banner show';
+        banner.textContent = (res.data && res.data.error) || (res.status === 0 ? '无法连接服务器' : '登录失败，请稍后再试');
+      }
+    });
+
+    // logout
+    $('#logout-btn').addEventListener('click', async () => {
+      await api('/api/logout', { method:'POST' });
+      showLogin('');
+      showToast('已退出登录', 'info');
+    });
+
+    // manual refresh
+    $('#refresh-btn').addEventListener('click', () => refresh(true));
+
+    // pause/resume on tab visibility
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && $('#view-dashboard').classList.contains('active')){
+        refresh(true);
+      }
+    });
+
+    // live countdown + relative updated time
+    setInterval(() => {
+      document.querySelectorAll('[data-reset]').forEach((el) => {
+        el.textContent = fmtReset(el.dataset.reset);
+      });
+    }, 30000);
+    setInterval(() => {
+      const up = $('#updated-at');
+      if (up.dataset.unix) up.textContent = fmtAgo(Number(up.dataset.unix));
+    }, 15000);
+  }
+
+  /* ---------------- boot ---------------- */
+  async function init(){
+    bind();
+    const s = await api('/api/session');
+    if (s.status === 200 && s.data && s.data.authenticated){
+      enterDashboard();
+    } else {
+      showLogin('');
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
