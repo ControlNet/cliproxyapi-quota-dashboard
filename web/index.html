@@ -107,6 +107,7 @@
   main.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 56px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
   .foot-note{margin-top:26px;text-align:center;font-size:12px;color:var(--faint)}
+  .keep-together{white-space:nowrap}
 
   /* account card */
   .acct{
@@ -266,7 +267,7 @@
   </header>
   <main class="wrap">
     <div class="grid" id="grid" aria-live="polite"></div>
-    <p class="foot-note">每 60 秒自动刷新 · 配额由服务端经管理接口聚合，密钥不出服务器</p>
+    <p class="foot-note">每 60 秒自动刷新 · 配额由服务端经管理接口聚合，密钥不出<span class="keep-together">服务器</span></p>
   </main>
 </section>
 
@@ -331,10 +332,10 @@
     return `${Math.floor(s/3600)} 小时前更新`;
   }
 
-  function severity(p){
-    if (p == null || !Number.isFinite(p)) return 'none';
-    if (p >= 90) return 'danger';
-    if (p >= 70) return 'warn';
+  function severity(remaining){
+    if (remaining == null || !Number.isFinite(remaining)) return 'none';
+    if (remaining <= 10) return 'danger';
+    if (remaining <= 30) return 'warn';
     return 'ok';
   }
 
@@ -384,17 +385,17 @@
   }
 
   function windowHTML(w){
-    const p = w.used_percent;
-    const sev = severity(p);
-    const shown = (p == null) ? null : Math.min(Math.max(p, 0), 100);
-    const offset = (shown == null) ? C : C * (1 - shown / 100);
-    const pctText = (p == null) ? '—' : String(Math.round(p * 10) / 10);
-    const overTag = (p != null && p > 100)
+    const used = w.used_percent;
+    const remaining = (used == null) ? null : 100 - Math.min(Math.max(used, 0), 100);
+    const sev = severity(remaining);
+    const offset = (remaining == null) ? C : C * (1 - remaining / 100);
+    const pctText = (remaining == null) ? '—' : String(Math.round(remaining * 10) / 10);
+    const overTag = (used != null && used > 100)
       ? '<span class="over-tag">超限</span>'
-      : ((sev === 'danger' && shown != null && shown >= 99 && p <= 100) ? '<span class="over-tag" style="color:var(--warn);border-color:rgba(251,191,36,.4)">将耗尽</span>' : '');
+      : ((sev === 'danger' && remaining != null && remaining <= 1) ? '<span class="over-tag" style="color:var(--warn);border-color:rgba(251,191,36,.4)">将耗尽</span>' : '');
     return (
       '<div class="win">' +
-        '<div class="gauge" data-sev="' + sev + '" role="img" aria-label="' + esc(w.name) + ' 已用 ' + esc(pctText) + '%">' +
+        '<div class="gauge" data-sev="' + sev + '" role="img" aria-label="' + esc(w.name) + ' 剩余 ' + esc(pctText) + '%">' +
           '<svg viewBox="0 0 60 60">' +
             '<circle class="track" cx="30" cy="30" r="26"/>' +
             '<circle class="arc" cx="30" cy="30" r="26" transform="rotate(-90 30 30)" ' +
