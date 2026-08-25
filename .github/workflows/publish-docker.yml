@@ -27,7 +27,6 @@ jobs:
           tags: |
             type=ref,event=tag
             type=semver,pattern={{major}}
-            type=sha,format=long
             type=raw,value=latest
 
       - name: Set up Docker Buildx
