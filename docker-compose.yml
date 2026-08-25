@@ -1,0 +1,11 @@
+services:
+  quota-dashboard:
+    image: controlnet/cliproxyapi-quota-dashboard:${IMAGE_TAG:-latest}
+    container_name: quota-dashboard
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    environment:
+      CLIPROXY_BASE_URL: "${CLIPROXY_BASE_URL:?CLIPROXY_BASE_URL is required}"
+      CLIPROXY_MANAGEMENT_KEY: "${CLIPROXY_MANAGEMENT_KEY:?CLIPROXY_MANAGEMENT_KEY is required}"
+      PORT: "${PORT:-8080}"
