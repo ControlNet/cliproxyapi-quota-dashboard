@@ -74,11 +74,11 @@ docker run -d --name quota-dashboard --restart unless-stopped \
 推送任意 Git tag 时，GitHub Actions 会构建并发布对应 tag 到 Docker Hub：
 
 ```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
+git tag -a 0.1.0 -m "Release 0.1.0"
+git push origin 0.1.0
 ```
 
-每次 tag push 都会发布原始 tag 并覆盖 `latest`。语义版本 tag 还会发布大版本别名，例如 `v2.3.1` 会发布 `v2.3.1`、`2` 和 `latest`。
+每次 tag push 都会发布原始 tag 并覆盖 `latest`。语义版本 tag 还会发布大版本别名，例如 `2.3.1` 会发布 `2.3.1`、`2` 和 `latest`。
 
 仓库维护者需要在 GitHub Actions 中配置：
 
