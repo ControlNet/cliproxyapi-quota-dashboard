@@ -40,6 +40,7 @@ const LOGIN_WINDOW: Duration = Duration::from_secs(5 * 60);
 struct AppState {
     cli: cliproxy::Cli,
     signer: SessionSigner,
+    quota_key_secret: Vec<u8>,
     quota_cache: Mutex<Option<(Instant, Value)>>,
     login_failures: Mutex<HashMap<IpAddr, (u32, Instant)>>,
 }
@@ -118,9 +119,11 @@ async fn main() {
     };
 
     let cli = cliproxy::Cli::new(base_url, management_key).expect("failed to init http client");
+    let signer = SessionSigner::new(secret.clone());
     let state = Arc::new(AppState {
         cli,
-        signer: SessionSigner::new(secret),
+        signer,
+        quota_key_secret: secret,
         quota_cache: Mutex::new(None),
         login_failures: Mutex::new(HashMap::new()),
     });
@@ -219,7 +222,7 @@ async fn quota(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Respon
     if let Some(cached) = state.cached_quota().await {
         return (StatusCode::OK, Json(cached)).into_response();
     }
-    match quota::aggregate(&state.cli).await {
+    match quota::aggregate(&state.cli, &state.quota_key_secret).await {
         Ok(payload) => {
             state.store_quota(payload.clone()).await;
             (StatusCode::OK, Json(payload)).into_response()
