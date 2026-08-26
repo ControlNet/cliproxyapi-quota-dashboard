@@ -11,13 +11,14 @@ import http from 'node:http';
 const PORT = Number(process.argv[2] || 9999);
 const USER_KEY = 'sk-user-test-123';
 const MGMT_KEY = 'mg-test-key';
+let codexUsageCalls = 0;
 
 const FUTURE = (secs) => new Date(Date.now() + secs * 1000).toISOString();
 
 const AUTH_FILES = [
   {
     id: 'file-claude-1', auth_index: '0', name: 'claude-max.json',
-    type: 'claude', provider: 'claude', label: 'Claude 工作组',
+    type: 'claude', provider: 'claude', label: 'dev-team@example.com',
     email: 'dev-team@example.com', status: 'active', disabled: false,
   },
   {
@@ -61,10 +62,11 @@ function upstreamBody(url) {
     return { account: { has_claude_max: true, has_claude_pro: false } };
   }
   if (url === 'https://chatgpt.com/backend-api/wham/usage') {
+    const usedDelta = (codexUsageCalls++ % 2) * 5;
     return {
       plan_type: 'plus',
       rate_limit: {
-        primary_window: { used_percent: 61.5, limit_window_seconds: 18000, reset_after_seconds: 5400 },
+        primary_window: { used_percent: 61.5 + usedDelta, limit_window_seconds: 18000, reset_after_seconds: 5400 },
         secondary_window: { used_percent: 23.8, limit_window_seconds: 604800, reset_after_seconds: 345600 },
       },
     };

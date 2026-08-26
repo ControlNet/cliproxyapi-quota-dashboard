@@ -267,7 +267,7 @@
   </header>
   <main class="wrap">
     <div class="grid" id="grid" aria-live="polite"></div>
-    <p class="foot-note">每 60 秒自动刷新 · 配额由服务端经管理接口聚合，密钥不出<span class="keep-together">服务器</span></p>
+    <p class="foot-note">每 60 秒自动刷新 · 配额由服务端经管理接口聚合，<span class="keep-together">密钥不出服务器</span></p>
   </main>
 </section>
 
@@ -384,51 +384,136 @@
     return '<span class="chip ' + p.cls + '">' + glyph + esc(p.label) + '</span>';
   }
 
-  function windowHTML(w){
+  function quotaState(w){
     const used = w.used_percent;
     const remaining = (used == null) ? null : 100 - Math.min(Math.max(used, 0), 100);
     const sev = severity(remaining);
     const offset = (remaining == null) ? C : C * (1 - remaining / 100);
     const pctText = (remaining == null) ? '—' : String(Math.round(remaining * 10) / 10);
-    const overTag = (used != null && used > 100)
-      ? '<span class="over-tag">超限</span>'
-      : ((sev === 'danger' && remaining != null && remaining <= 1) ? '<span class="over-tag" style="color:var(--warn);border-color:rgba(251,191,36,.4)">将耗尽</span>' : '');
+    const overLabel = (used != null && used > 100)
+      ? '超限'
+      : ((sev === 'danger' && remaining != null && remaining <= 1) ? '将耗尽' : '');
+    return { sev, offset, pctText, overLabel };
+  }
+
+  function overTagHTML(state){
+    if (!state.overLabel) return '';
+    const warningStyle = state.overLabel === '将耗尽'
+      ? ' style="color:var(--warn);border-color:rgba(251,191,36,.4)"'
+      : '';
+    return '<span class="over-tag"' + warningStyle + '>' + state.overLabel + '</span>';
+  }
+
+  function windowHTML(w){
+    const state = quotaState(w);
     return (
-      '<div class="win">' +
-        '<div class="gauge" data-sev="' + sev + '" role="img" aria-label="' + esc(w.name) + ' 剩余 ' + esc(pctText) + '%">' +
+      '<div class="win" data-window-name="' + esc(w.name) + '">' +
+        '<div class="gauge" data-sev="' + state.sev + '" role="img" aria-label="' + esc(w.name) + ' 剩余 ' + esc(state.pctText) + '%">' +
           '<svg viewBox="0 0 60 60">' +
             '<circle class="track" cx="30" cy="30" r="26"/>' +
             '<circle class="arc" cx="30" cy="30" r="26" transform="rotate(-90 30 30)" ' +
-              'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '"/>' +
+              'stroke-dasharray="' + C.toFixed(2) + '" style="stroke-dashoffset:' + state.offset.toFixed(2) + '"/>' +
           '</svg>' +
-          '<b class="pct">' + esc(pctText) + '<small>%</small></b>' +
+          '<b class="pct">' + esc(state.pctText) + '<small>%</small></b>' +
         '</div>' +
         '<div class="win-meta">' +
           '<span class="wname">' + esc(w.name) + '</span>' +
           (w.resets_at ? '<span class="wdesc" data-reset="' + esc(w.resets_at) + '">' + esc(fmtReset(w.resets_at)) + '</span>' : '') +
           (w.caption ? '<span class="wcap">' + esc(w.caption) + '</span>' : '') +
-          overTag +
+          overTagHTML(state) +
         '</div>' +
       '</div>'
     );
   }
 
-  function cardHTML(a, i){
+  function elementFromHTML(html){
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    return template.content.firstElementChild;
+  }
+
+  function patchWindow(win, w){
+    const state = quotaState(w);
+    win.dataset.windowName = String(w.name ?? '');
+
+    const gauge = win.querySelector('.gauge');
+    gauge.dataset.sev = state.sev;
+    gauge.setAttribute('aria-label', String(w.name ?? '') + ' 剩余 ' + state.pctText + '%');
+    gauge.querySelector('.arc').style.strokeDashoffset = state.offset.toFixed(2);
+    const pct = gauge.querySelector('.pct');
+    pct.firstChild.nodeValue = state.pctText;
+
+    const meta = win.querySelector('.win-meta');
+    meta.querySelector('.wname').textContent = String(w.name ?? '');
+
+    let reset = meta.querySelector('.wdesc');
+    if (w.resets_at){
+      if (!reset){
+        reset = document.createElement('span');
+        reset.className = 'wdesc';
+        meta.insertBefore(reset, meta.querySelector('.wcap, .over-tag'));
+      }
+      reset.dataset.reset = w.resets_at;
+      reset.textContent = fmtReset(w.resets_at);
+    } else if (reset){
+      reset.remove();
+    }
+
+    let caption = meta.querySelector('.wcap');
+    if (w.caption){
+      if (!caption){
+        caption = document.createElement('span');
+        caption.className = 'wcap';
+        meta.insertBefore(caption, meta.querySelector('.over-tag'));
+      }
+      caption.textContent = w.caption;
+    } else if (caption){
+      caption.remove();
+    }
+
+    let overTag = meta.querySelector('.over-tag');
+    if (state.overLabel){
+      if (!overTag){
+        overTag = document.createElement('span');
+        overTag.className = 'over-tag';
+        meta.appendChild(overTag);
+      }
+      overTag.textContent = state.overLabel;
+      const warning = state.overLabel === '将耗尽';
+      overTag.style.color = warning ? 'var(--warn)' : '';
+      overTag.style.borderColor = warning ? 'rgba(251,191,36,.4)' : '';
+    } else if (overTag){
+      overTag.remove();
+    }
+  }
+
+  function accountKey(a){
+    return (typeof a.key === 'string' && a.key) ? a.key : '';
+  }
+
+  function extraValues(a){
     const extras = [];
     if (a.extra){
       if (a.extra.credit_summary) extras.push(a.extra.credit_summary);
       if (a.extra.g1_credits) extras.push(a.extra.g1_credits);
     }
+    return extras;
+  }
+
+  function errorHTML(message){
+    return '<div class="err-row">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 9.5V14M12 17v.01"/></svg>' +
+      '<span>' + esc(message) + '</span></div>';
+  }
+
+  function cardHTML(a, i){
+    const extras = extraValues(a);
     const windows = (a.error == null && !a.disabled && Array.isArray(a.windows) && a.windows.length)
       ? '<div class="windows">' + a.windows.map(windowHTML).join('') + '</div>'
       : '';
-    const errRow = a.error
-      ? '<div class="err-row">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 9.5V14M12 17v.01"/></svg>' +
-        '<span>' + esc(a.error) + '</span></div>'
-      : '';
+    const errRow = a.error ? errorHTML(a.error) : '';
     return (
-      '<article class="acct fade-up' + (a.disabled ? ' disabled' : '') + '" style="animation-delay:' + (i * 45) + 'ms">' +
+      '<article class="acct fade-up' + (a.disabled ? ' disabled' : '') + '" data-account-key="' + esc(accountKey(a)) + '" data-provider="' + esc(a.provider) + '" style="animation-delay:' + (i * 45) + 'ms">' +
         '<div class="card-top">' +
           chipHTML(a.provider) +
           (a.plan ? '<span class="badge-plan">' + esc(a.plan) + '</span>' : '') +
@@ -444,13 +529,161 @@
     );
   }
 
+  function reconcileWindows(container, windows){
+    const existing = new Map();
+    container.querySelectorAll(':scope > .win').forEach((win) => {
+      existing.set(win.dataset.windowName, win);
+    });
+    const desired = windows.map((w) => {
+      const key = String(w.name ?? '');
+      const win = existing.get(key) || elementFromHTML(windowHTML(w));
+      existing.delete(key);
+      patchWindow(win, w);
+      return win;
+    });
+    existing.forEach((win) => {
+      win.remove();
+    });
+    desired.forEach((win, i) => {
+      if (container.children[i] !== win) container.insertBefore(win, container.children[i] || null);
+    });
+  }
+
+  function patchCard(card, a){
+    card.classList.toggle('disabled', Boolean(a.disabled));
+    if (card.dataset.provider !== String(a.provider ?? '')){
+      card.querySelector('.chip').replaceWith(elementFromHTML(chipHTML(a.provider)));
+      card.dataset.provider = String(a.provider ?? '');
+    }
+
+    const heading = card.querySelector('h3');
+    heading.textContent = String(a.label ?? '');
+    heading.title = String(a.label ?? '');
+
+    const top = card.querySelector('.card-top');
+    const spacer = top.querySelector('.spacer');
+    let plan = top.querySelector('.badge-plan');
+    if (a.plan){
+      if (!plan){
+        plan = document.createElement('span');
+        plan.className = 'badge-plan';
+        top.insertBefore(plan, spacer);
+      }
+      plan.textContent = a.plan;
+    } else if (plan){
+      plan.remove();
+    }
+
+    let disabledTag = top.querySelector('.tag-off');
+    if (a.disabled){
+      if (!disabledTag){
+        disabledTag = document.createElement('span');
+        disabledTag.className = 'tag-off';
+        disabledTag.textContent = '已禁用';
+        top.appendChild(disabledTag);
+      }
+    } else if (disabledTag){
+      disabledTag.remove();
+    }
+
+    const showWindows = a.error == null && !a.disabled && Array.isArray(a.windows) && a.windows.length;
+    let windows = card.querySelector(':scope > .windows');
+    if (showWindows){
+      if (!windows){
+        windows = document.createElement('div');
+        windows.className = 'windows';
+        heading.insertAdjacentElement('afterend', windows);
+      }
+      reconcileWindows(windows, a.windows);
+    } else if (windows){
+      windows.remove();
+    }
+
+    let error = card.querySelector(':scope > .err-row');
+    if (a.error){
+      if (!error){
+        error = elementFromHTML(errorHTML(a.error));
+        const extras = card.querySelector(':scope > .extras');
+        card.insertBefore(error, extras);
+      }
+      error.querySelector('span').textContent = a.error;
+    } else if (error){
+      error.remove();
+    }
+
+    const values = extraValues(a);
+    let extras = card.querySelector(':scope > .extras');
+    if (values.length){
+      if (!extras){
+        extras = document.createElement('div');
+        extras.className = 'extras';
+        card.appendChild(extras);
+      }
+      values.forEach((value, i) => {
+        let row = extras.children[i];
+        if (!row){
+          row = elementFromHTML('<div class="extra-row"><i></i><span></span></div>');
+          extras.appendChild(row);
+        }
+        let text = row.querySelector('span');
+        if (!text){
+          text = document.createElement('span');
+          while (row.childNodes.length > 1) row.lastChild.remove();
+          row.appendChild(text);
+        }
+        text.textContent = value;
+      });
+      while (extras.children.length > values.length) extras.lastElementChild.remove();
+    } else if (extras){
+      extras.remove();
+    }
+  }
+
   function renderAccounts(accounts){
     const grid = $('#grid');
     if (!Array.isArray(accounts) || accounts.length === 0){
-      grid.innerHTML = '<div class="empty fade-up">暂无可展示的 OAuth 账号</div>';
-      return;
+      if (grid.children.length !== 1 || !grid.firstElementChild.classList.contains('empty')){
+        grid.innerHTML = '<div class="empty fade-up">暂无可展示的 OAuth 账号</div>';
+      }
+      return true;
     }
-    grid.innerHTML = accounts.map(cardHTML).join('');
+
+    const keys = accounts.map(accountKey);
+    if (keys.some((key) => !key) || new Set(keys).size !== keys.length){
+      showToast('账号数据缺少稳定标识，保留上次数据');
+      return false;
+    }
+    const invalidWindows = accounts.some((account) => {
+      if (!Array.isArray(account.windows)) return false;
+      const names = account.windows.map((windowData) =>
+        (typeof windowData.name === 'string') ? windowData.name : ''
+      );
+      return names.some((name) => !name.trim()) || new Set(names).size !== names.length;
+    });
+    if (invalidWindows){
+      showToast('配额窗口数据缺少稳定标识，保留上次数据');
+      return false;
+    }
+
+    const existing = new Map();
+    grid.querySelectorAll(':scope > .acct[data-account-key]').forEach((card) => {
+      existing.set(card.dataset.accountKey, card);
+    });
+    const desired = accounts.map((a, i) => {
+      const key = keys[i];
+      const card = existing.get(key) || elementFromHTML(cardHTML(a, i));
+      existing.delete(key);
+      patchCard(card, a);
+      return card;
+    });
+    const keep = new Set(desired);
+    Array.from(grid.children).forEach((child) => {
+      if (!keep.has(child)) child.remove();
+    });
+    desired.forEach((card, i) => {
+      if (grid.children[i] !== card) grid.insertBefore(card, grid.children[i] || null);
+    });
+    return true;
   }
 
   function renderSkeletons(){
@@ -465,12 +698,14 @@
     if (refreshing && !manual) return;
     if (document.hidden && !manual) return;
     if (inflight) inflight.abort();
-    inflight = new AbortController();
+    const controller = new AbortController();
+    inflight = controller;
     refreshing = true;
     const btn = $('#refresh-btn');
     btn.classList.add('spinning');
 
-    const res = await api('/api/quota', { signal: inflight.signal });
+    const res = await api('/api/quota', { signal: controller.signal });
+    if (inflight !== controller) return;
     refreshing = false;
     btn.classList.remove('spinning');
     inflight = null;
@@ -480,8 +715,8 @@
       showToast((res.data && res.data.error) || '获取配额失败，保留上次数据');
       return;
     }
+    if (!renderAccounts(res.data.accounts)) return;
     if (firstLoad) firstLoad = false;
-    renderAccounts(res.data.accounts);
     const up = $('#updated-at');
     up.dataset.unix = res.data.fetched_at;
     up.textContent = fmtAgo(res.data.fetched_at);
